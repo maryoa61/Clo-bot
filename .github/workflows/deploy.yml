@@ -1,0 +1,89 @@
+name: Deploy Telegram Bot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: 🚀 Deploy Worker + Set Webhook
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      # ست کردن Secrets در Cloudflare Workers
+      - name: 🔐 Set Worker Secrets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          secrets: |
+            TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+            CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+            CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+            CUSTOM_API_BASE: ${{ secrets.CUSTOM_API_BASE }}
+            CUSTOM_API_KEY: ${{ secrets.CUSTOM_API_KEY }}
+
+      # دیپلوی Worker
+      - name: 🚀 Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: deploy
+
+      - name: 🔗 Setup Telegram Webhook
+        run: |
+          sleep 5
+          
+          WORKER_URL="https://telegram-coding-bot.${{ secrets.CF_SUBDOMAIN }}.workers.dev"
+          WEBHOOK_URL="${WORKER_URL}/webhook/${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          
+          echo "🔗 Setting webhook..."
+          echo "   URL: ${WEBHOOK_URL}"
+          echo ""
+          
+          RESULT=$(curl -s "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"url\": \"${WEBHOOK_URL}\",
+              \"allowed_updates\": [\"message\"],
+              \"drop_pending_updates\": true
+            }")
+          
+          echo "$RESULT" | jq .
+          
+          OK=$(echo "$RESULT" | jq -r '.ok')
+          if [ "$OK" = "true" ]; then
+            echo ""
+            echo "✅ Webhook set successfully!"
+            echo "🤖 Bot is live! Send a message on Telegram."
+          else
+            echo ""
+            echo "❌ Webhook setup failed!"
+            exit 1
+          fi
+
+      - name: 📋 Summary
+        run: |
+          echo "## 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Worker | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Webhook | ✅ Configured |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bot | 🤖 Ready |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Try it:" >> $GITHUB_STEP_SUMMARY
+          echo "Open Telegram and send a message to your bot!" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,29 @@
+name: Deploy Telegram Bot Worker to Cloudflare
+
+# هر بار که به شاخه main پوش (commit) بشه، این workflow خودکار اجرا می‌شود
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # امکان اجرای دستی از تب Actions در گیت‌هاب
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers + Set Secrets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # این بخش، Secretهای ربات را هر بار خودکار روی Worker ست/به‌روزرسانی می‌کند
+          secrets: |
+            TELEGRAM_BOT_TOKEN
+            TELEGRAM_WEBHOOK_SECRET
+            BRAVE_SEARCH_API_KEY
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}

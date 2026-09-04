@@ -22,8 +22,6 @@ jobs:
           secrets: |
             TELEGRAM_BOT_TOKEN
             TELEGRAM_WEBHOOK_SECRET
-            BRAVE_SEARCH_API_KEY
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
-          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}

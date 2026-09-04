@@ -1,0 +1,14 @@
+name = "telegram-coding-bot"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[vars]
+AI_PROVIDER = "cloudflare"
+CF_DEFAULT_MODEL  = "@cf/qwen/qwen3-30b-a3b-fp8"
+CF_CODE_MODEL     = "@cf/qwen/qwen3-30b-a3b-fp8"
+CF_THINKING_MODEL = "@cf/qwen/qwq-32b"
+MAX_HISTORY = 20
+
+[[kv_namespaces]]
+ binding = "CHAT_HISTORY"
+ id = "YOUR_KV_NAMESPACE_ID"

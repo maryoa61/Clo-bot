@@ -1,0 +1,98 @@
+name: First-Time Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # ─────────────────────────────────────────────
+  #  جاب ۱: ساخت KV Namespace
+  # ─────────────────────────────────────────────
+  create-kv:
+    runs-on: ubuntu-latest
+    name: 📦 Create KV Namespace
+
+    outputs:
+      kv_id: ${{ steps.create.outputs.kv_id }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 📦 Install wrangler
+        run: npm install -g wrangler
+
+      - name: 🔑 Login to Cloudflare
+        run: echo "${{ secrets.CF_API_TOKEN }}" | wrangler auth token
+
+      - name: 📦 Create KV Namespace
+        id: create
+        run: |
+          echo "📦 Creating KV Namespace..."
+          OUTPUT=$(wrangler kv namespace create CHAT_HISTORY --account-id="${{ secrets.CF_ACCOUNT_ID }}" 2>&1)
+          echo "$OUTPUT"
+          
+          # استخراج ID از خروجی
+          KV_ID=$(echo "$OUTPUT" | grep -oP 'id = "\K[^"]+')
+          echo "kv_id=$KV_ID" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "========================================="
+          echo "✅ KV Namespace ID: $KV_ID"
+          echo "========================================="
+          echo ""
+          echo "👆 این ID رو کپی کن و توی wrangler.toml بذار"
+
+  # ─────────────────────────────────────────────
+  #  جاب ۲: تست اتصال تلگرام
+  # ─────────────────────────────────────────────
+  test-telegram:
+    runs-on: ubuntu-latest
+    name: 🤖 Test Telegram Bot Token
+
+    steps:
+      - name: 🔍 Validate bot token
+        run: |
+          echo "🤖 Testing Telegram bot token..."
+          RESULT=$(curl -s "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/getMe")
+          echo "$RESULT" | jq .
+          
+          OK=$(echo "$RESULT" | jq -r '.ok')
+          if [ "$OK" = "true" ]; then
+            NAME=$(echo "$RESULT" | jq -r '.result.first_name')
+            echo ""
+            echo "✅ Bot is valid: $NAME"
+          else
+            echo ""
+            echo "❌ Invalid bot token!"
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────
+  #  جاب ۳: تست Workers AI
+  # ─────────────────────────────────────────────
+  test-cloudflare:
+    runs-on: ubuntu-latest
+    name: ☁️ Test Cloudflare Access
+
+    steps:
+      - name: 🔍 Test Cloudflare API
+        run: |
+          echo "☁️ Testing Cloudflare API access..."
+          RESULT=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CF_ACCOUNT_ID }}" \
+            -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+          
+          NAME=$(echo "$RESULT" | jq -r '.result.name // "unknown"')
+          SUCCESS=$(echo "$RESULT" | jq -r '.success')
+          
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ Cloudflare account: $NAME"
+          else
+            echo "❌ Cloudflare API access failed!"
+            echo "$RESULT" | jq .
+            exit 1
+          fi

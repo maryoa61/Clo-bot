@@ -1,0 +1,14 @@
+{
+  "name": "telegram-code-assistant",
+  "main": "src/index.js",
+  "compatibility_date": "2024-09-23",
+  "kv_namespaces": [
+    {
+      "binding": "CHAT_KV",
+      "id": "0d938ca79b9646dfa8f74a72f5775fdb"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}

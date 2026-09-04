@@ -11,4 +11,4 @@ MAX_HISTORY = 20
 
 [[kv_namespaces]]
  binding = "CHAT_HISTORY"
- id = "YOUR_KV_NAMESPACE_ID"
+ id = "c80dfc1eb4be40c9b4d032686362e0c8"

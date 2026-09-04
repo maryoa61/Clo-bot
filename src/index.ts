@@ -7,11 +7,11 @@
  */
 
 interface Env {
-  TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_BOT_TOKEN: ***
 
   // Cloudflare Workers AI
   CF_ACCOUNT_ID?: string;
-  CF_API_TOKEN?: string;
+  CF_API_TOKEN?: ***
   AI?: Ai;
   CF_DEFAULT_MODEL: string;
   CF_CODE_MODEL: string;
@@ -19,9 +19,9 @@ interface Env {
 
   // Custom API
   AI_PROVIDER: string; // "cloudflare" | "custom"
-  CUSTOM_API_BASE?: string;   // secret
-  CUSTOM_API_KEY?: string;    // secret
-  CUSTOM_MODEL?: string;      // secret or var
+  CUSTOM_API_BASE?: ***   // secret
+  CUSTOM_API_KEY?: ***    // secret
+  CUSTOM_MODEL?: string;     // secret or var
   CUSTOM_THINKING_MODEL?: string; // secret or var
 
   // Storage
@@ -145,6 +145,7 @@ interface ModelConfig {
 }
 
 function resolveModel(intent: Intent, env: Env): ModelConfig {
+  // اگه CUSTOM_API_KEY ست شده باشه، حتی اگه AI_PROVIDER نباشه، custom حساب کن
   const hasCustomKey = !!(env.CUSTOM_API_KEY && env.CUSTOM_API_KEY.trim());
   const isCustom = env.AI_PROVIDER === "custom" || hasCustomKey;
 
@@ -158,6 +159,7 @@ function resolveModel(intent: Intent, env: Env): ModelConfig {
     return { provider: "custom", model, baseUrl: base, apiKey: key };
   }
 
+  // Cloudflare Workers AI
   const model = intent === "thinking"
     ? env.CF_THINKING_MODEL
     : intent === "code"
@@ -174,6 +176,7 @@ function resolveModel(intent: Intent, env: Env): ModelConfig {
 async function callAI(config: ModelConfig, env: Env, messages: ChatMessage[]): Promise<string> {
   // ── حالت Cloudflare Workers AI ──
   if (config.provider === "cloudflare") {
+    // AI binding
     if (env.AI) {
       try {
         const r: any = await env.AI.run(config.model as any, {
@@ -185,6 +188,7 @@ async function callAI(config: ModelConfig, env: Env, messages: ChatMessage[]): P
       } catch { /* fallback to REST */ }
     }
 
+    // REST
     const resp = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/ai/run/${config.model}`,
       {
@@ -222,14 +226,17 @@ async function callAI(config: ModelConfig, env: Env, messages: ChatMessage[]): P
   if (!resp.ok) throw new Error(`Custom API ${resp.status}: ${await resp.text()}`);
   const d: any = await resp.json();
 
+  // OpenAI-compatible response format
   const content = d.choices?.[0]?.message?.content;
   if (content) return content;
+
+  // Some providers return differently
   if (d.result?.response) return d.result.response;
 
   throw new Error("Unexpected response format from custom API");
 }
 
-// ─── فالبک ───
+// ─── فالبک: اگه مدل اصلی خطا داد ───
 
 async function callWithFallback(
   config: ModelConfig,
@@ -241,8 +248,10 @@ async function callWithFallback(
   } catch (primaryErr: any) {
     console.error("Primary model failed:", primaryErr.message);
 
+    // اگه custom بود و خطا داد، بیخیال
     if (config.provider === "custom") throw primaryErr;
 
+    // اگه cloudflare بود، فالبک به مدل پیش‌فرض
     try {
       const fallback = { ...config, model: env.CF_DEFAULT_MODEL };
       const reply = await callAI(fallback, env, messages);
@@ -303,23 +312,29 @@ export default {
       const token = env.TELEGRAM_BOT_TOKEN;
       const maxH = parseInt(env.MAX_HISTORY) || 20;
 
+      // تشخیص intent
       const intent = detectIntent(text);
 
+      // پاک کردن مکالمه
       if (intent === "clear") {
         await env.CHAT_HISTORY.delete(`chat:${chatId}`);
         await sendMsg(token, chatId, "✅ مکالمه پاک شد. هر وقت خواستی شروع کن!");
         return new Response("OK");
       }
 
+      // خوش‌آمد
       if (/^(\/start|\/help|سلام|hi|hello|hey)\b/i.test(text)) {
         await sendMsg(token, chatId, WELCOME, msg.message_id);
         return new Response("OK");
       }
 
+      // تایپینگ
       await tgApi(token, "sendChatAction", { chat_id: chatId, action: "typing" });
 
+      // انتخاب مدل
       const config = resolveModel(intent, env);
 
+      // ساخت پیام‌ها
       const history = await getHistory(env.CHAT_HISTORY, chatId, maxH);
       const messages: ChatMessage[] = [
         { role: "system", content: SYSTEM_PROMPT },
@@ -327,6 +342,7 @@ export default {
         { role: "user", content: text },
       ];
 
+      // فراخوانی AI
       let reply: string;
       try {
         reply = await callWithFallback(config, env, messages);
@@ -335,6 +351,7 @@ export default {
         return new Response("OK");
       }
 
+      // ذخیره تاریخچه
       const updated = [
         ...history,
         { role: "user" as const, content: text },
@@ -342,6 +359,7 @@ export default {
       ];
       await saveHistory(env.CHAT_HISTORY, chatId, updated, maxH);
 
+      // ارسال پاسخ
       await sendMsg(token, chatId, reply, msg.message_id);
 
       return new Response("OK");

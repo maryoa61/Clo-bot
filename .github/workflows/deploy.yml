@@ -14,28 +14,20 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: ⚙️ Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: 📦 Install dependencies
-        run: npm ci
-
-      # ست کردن Secrets در Cloudflare Workers
       - name: 🔐 Set Worker Secrets
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           secrets: |
-            TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-            CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-            CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-            CUSTOM_API_BASE: ${{ secrets.CUSTOM_API_BASE }}
-            CUSTOM_API_KEY: ${{ secrets.CUSTOM_API_KEY }}
+            TELEGRAM_BOT_TOKEN
+            CUSTOM_API_BASE
+            CUSTOM_API_KEY
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CUSTOM_API_BASE: ${{ secrets.CUSTOM_API_BASE }}
+          CUSTOM_API_KEY: ${{ secrets.CUSTOM_API_KEY }}
 
-      # دیپلوی Worker
       - name: 🚀 Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -46,14 +38,14 @@ jobs:
       - name: 🔗 Setup Telegram Webhook
         run: |
           sleep 5
-          
+
           WORKER_URL="https://telegram-coding-bot.${{ secrets.CF_SUBDOMAIN }}.workers.dev"
           WEBHOOK_URL="${WORKER_URL}/webhook/${{ secrets.TELEGRAM_BOT_TOKEN }}"
-          
+
           echo "🔗 Setting webhook..."
           echo "   URL: ${WEBHOOK_URL}"
           echo ""
-          
+
           RESULT=$(curl -s "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook" \
             -H "Content-Type: application/json" \
             -d "{
@@ -61,9 +53,9 @@ jobs:
               \"allowed_updates\": [\"message\"],
               \"drop_pending_updates\": true
             }")
-          
+
           echo "$RESULT" | jq .
-          
+
           OK=$(echo "$RESULT" | jq -r '.ok')
           if [ "$OK" = "true" ]; then
             echo ""
